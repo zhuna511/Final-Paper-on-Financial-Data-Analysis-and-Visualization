@@ -1,0 +1,1833 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import matplotlib
+import numpy as np
+
+plt.rcParams['font.sans-serif'] = ['SimHei']
+plt.rcParams['axes.unicode_minus'] = False
+
+# 读取数据
+df = pd.read_csv(r'研究窗口股票数据.csv')  
+
+# 计算平均超额收益率
+avg_excess_return = df.groupby('窗口位置')['超额收益率'].mean().reset_index()
+avg_excess_return = avg_excess_return.sort_values('窗口位置')
+
+# 创建图表
+fig, ax = plt.subplots(figsize=(10, 5))
+
+# 绘制折线图
+ax.plot(avg_excess_return['窗口位置'], 
+        avg_excess_return['超额收益率'], 
+        marker='o', 
+        linewidth=3, 
+        markersize=10,
+        color='#2E86AB',
+        label='平均超额收益率')
+
+ax.axvline(x=0, color='red', linestyle='--', linewidth=2.5, alpha=0.8, label='事件日 (t=0)')
+ax.set_title('事件窗口期平均超额收益率变化趋势', fontsize=18, fontweight='bold', pad=25)
+ax.set_xlabel('窗口位置 (交易日)', fontsize=14)
+ax.set_ylabel('平均超额收益率 (%)', fontsize=14)
+
+window_positions = sorted(df['窗口位置'].unique())
+ax.set_xticks(window_positions)
+ax.tick_params(axis='both', labelsize=12)
+
+# 添加零线
+ax.axhline(y=0, color='black', linewidth=1, alpha=0.7)
+
+# 添加数据标签
+for i, row in avg_excess_return.iterrows():
+    ax.annotate(f'{row["超额收益率"]:.2f}%',
+                xy=(row['窗口位置'], row['超额收益率']),
+                xytext=(0, 10 if row['超额收益率'] >= 0 else -15),
+                textcoords='offset points',
+                ha='center',
+                fontsize=11,
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="lightgray", alpha=0.9))
+
+# 添加图例
+ax.legend(loc='best', fontsize=12, frameon=True, framealpha=0.9)
+
+# 添加网格
+ax.grid(True, alpha=0.3)
+
+# 调整布局
+plt.tight_layout()
+
+# 显示图表
+plt.show()
+
+# 打印统计信息
+print("="*60)
+print("各窗口位置平均超额收益率统计:")
+print(avg_excess_return.to_string(index=False))
+print("\n事件日前平均超额收益率: {:.4f}%".format(
+    avg_excess_return[avg_excess_return['窗口位置'] < 0]['超额收益率'].mean()))
+print("事件日后平均超额收益率: {:.4f}%".format(
+    avg_excess_return[avg_excess_return['窗口位置'] > 0]['超额收益率'].mean()))
+
+
+
+
+
+
+
+# 只取"是否事发日"=True的那些行
+event_day_data = df[df['是否事发日'] == True].copy()
+
+# 检查是否有足够的数据
+if len(event_day_data) == 0:
+    print("错误：数据中没有找到事发日（是否事发日=True）的记录")
+    print("请检查数据中是否存在事发日记录")
+else:
+    print(f"找到 {len(event_day_data)} 条事发日记录")
+    
+    # 提取需要的两列数据
+    tone_returns_data = event_day_data[['年报语调', '超额收益率']].copy()
+    
+    # 删除缺失值
+    tone_returns_clean = tone_returns_data.dropna()
+    
+    print(f"\n数据清洗前: {len(tone_returns_data)} 条记录")
+    print(f"数据清洗后: {len(tone_returns_clean)} 条记录 (删除缺失值后)")
+    
+    if len(tone_returns_clean) < 2:
+        print("错误：清洗后数据不足2条，无法计算相关系数")
+    else:
+        # 计算相关系数
+        correlation = tone_returns_clean['年报语调'].corr(tone_returns_clean['超额收益率'])
+        
+        print("\n" + "="*60)
+        print("年报语调与事件日超额收益率相关性分析")
+        print("="*60)
+        print(f"相关系数 (Pearson): {correlation:.4f}")
+        
+        # 计算其他相关性指标
+        spearman_corr = tone_returns_clean['年报语调'].corr(tone_returns_clean['超额收益率'], method='spearman')
+        kendall_corr = tone_returns_clean['年报语调'].corr(tone_returns_clean['超额收益率'], method='kendall')
+        
+        print(f"秩相关系数 (Spearman): {spearman_corr:.4f}")
+        print(f"肯德尔相关系数 (Kendall): {kendall_corr:.4f}")
+        
+        # 计算显著性
+        import scipy.stats as stats
+        n = len(tone_returns_clean)
+        if n > 2:
+            pearson_stat, pearson_p = stats.pearsonr(tone_returns_clean['年报语调'], 
+                                                     tone_returns_clean['超额收益率'])
+            print(f"Pearson相关性显著性 (p值): {pearson_p:.6f}")
+            if pearson_p < 0.05:
+                print("结果：在5%显著性水平上显著相关")
+            else:
+                print("结果：在5%显著性水平上不显著相关")
+        
+        # 基本统计信息
+        print("\n描述性统计:")
+        print("-"*40)
+        print("年报语调:")
+        print(f"  均值: {tone_returns_clean['年报语调'].mean():.4f}")
+        print(f"  标准差: {tone_returns_clean['年报语调'].std():.4f}")
+        print(f"  最小值: {tone_returns_clean['年报语调'].min():.4f}")
+        print(f"  最大值: {tone_returns_clean['年报语调'].max():.4f}")
+        
+        print("\n事件日超额收益率:")
+        print(f"  均值: {tone_returns_clean['超额收益率'].mean():.4f}%")
+        print(f"  标准差: {tone_returns_clean['超额收益率'].std():.4f}%")
+        print(f"  最小值: {tone_returns_clean['超额收益率'].min():.4f}%")
+        print(f"  最大值: {tone_returns_clean['超额收益率'].max():.4f}%")
+        
+        # 可视化
+        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+        
+        # 1. 散点图
+        ax1 = axes[0, 0]
+        scatter = ax1.scatter(tone_returns_clean['年报语调'], 
+                              tone_returns_clean['超额收益率'],
+                              alpha=0.6, s=50, c='blue', edgecolors='black')
+        
+        # 添加回归线
+        if len(tone_returns_clean) >= 2:
+            z = np.polyfit(tone_returns_clean['年报语调'], 
+                          tone_returns_clean['超额收益率'], 1)
+            p = np.poly1d(z)
+            x_range = np.linspace(tone_returns_clean['年报语调'].min(), 
+                                 tone_returns_clean['年报语调'].max(), 100)
+            ax1.plot(x_range, p(x_range), "r--", alpha=0.8, linewidth=2)
+        
+        ax1.set_xlabel('年报语调', fontsize=12)
+        ax1.set_ylabel('事件日超额收益率 (%)', fontsize=12)
+        ax1.set_title(f'年报语调 vs 事件日超额收益率\n相关系数: {correlation:.4f}', fontsize=14, fontweight='bold')
+        ax1.grid(True, alpha=0.3)
+        
+        # 2. 直方图 - 年报语调
+        ax2 = axes[0, 1]
+        ax2.hist(tone_returns_clean['年报语调'], bins=20, alpha=0.7, color='skyblue', edgecolor='black')
+        ax2.set_xlabel('年报语调', fontsize=12)
+        ax2.set_ylabel('频率', fontsize=12)
+        ax2.set_title('年报语调分布', fontsize=14, fontweight='bold')
+        ax2.grid(True, alpha=0.3)
+        
+        # 3. 直方图 - 超额收益率
+        ax3 = axes[1, 0]
+        ax3.hist(tone_returns_clean['超额收益率'], bins=20, alpha=0.7, color='lightgreen', edgecolor='black')
+        ax3.set_xlabel('事件日超额收益率 (%)', fontsize=12)
+        ax3.set_ylabel('频率', fontsize=12)
+        ax3.set_title('事件日超额收益率分布', fontsize=14, fontweight='bold')
+        ax3.grid(True, alpha=0.3)
+        
+        # 4. 箱线图
+        ax4 = axes[1, 1]
+        data_for_box = [tone_returns_clean['年报语调'], tone_returns_clean['超额收益率']]
+        box_labels = ['年报语调', '事件日超额收益率']
+        box = ax4.boxplot(data_for_box, labels=box_labels, patch_artist=True)
+        
+        # 设置箱线图颜色
+        colors = ['lightblue', 'lightgreen']
+        for patch, color in zip(box['boxes'], colors):
+            patch.set_facecolor(color)
+        
+        ax4.set_ylabel('数值', fontsize=12)
+        ax4.set_title('变量分布箱线图', fontsize=14, fontweight='bold')
+        ax4.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.show()
+        
+        # 输出详细数据表格
+        print("\n" + "="*60)
+        print("详细数据表格（事发日记录）:")
+        print("="*60)
+        
+        # 创建详细数据表格
+        detailed_table = event_day_data[['股票代码', '交易日期', '年报语调', '超额收益率']].copy()
+        detailed_table = detailed_table.sort_values('股票代码')
+
+        
+        print("\n相关系数解释:")
+        print("-"*40)
+        if abs(correlation) > 0.7:
+            print("强相关性")
+        elif abs(correlation) > 0.3:
+            print("中等相关性")
+        else:
+            print("弱相关性")
+        
+        if correlation > 0:
+            print("正相关：年报语调越高，事件日超额收益率越高")
+        elif correlation < 0:
+            print("负相关：年报语调越高，事件日超额收益率越低")
+        else:
+            print("无线性相关关系")
+
+
+
+
+
+
+
+
+window_data = df[df['窗口位置'].between(-3, 5)].copy()
+
+print(f"总数据条数: {len(df)}")
+print(f"窗口[-3,+5]数据条数: {len(window_data)}")
+
+if len(window_data) == 0:
+    print("错误：没有找到窗口[-3,+5]的数据")
+else:
+    # 为每个事件计算平均情绪和累计超额收益率
+    events_list = []
+    
+    for (stock_code, period), group in window_data.groupby(['股票代码', '期间']):
+        avg_sentiment = group['评论情绪指标'].mean()
+        cum_excess_return = group['超额收益率'].sum()
+        
+        events_list.append({
+            '股票代码': stock_code,
+            '期间': period,
+            '平均情绪': avg_sentiment,
+            '累计超额收益率': cum_excess_return,
+            '数据天数': len(group)
+        })
+    
+    # 转换为DataFrame
+    events_df = pd.DataFrame(events_list)
+    
+    # 计算相关系数
+    if len(events_df) >= 2:
+        # 删除缺失值
+        events_clean = events_df[['平均情绪', '累计超额收益率']].dropna()
+        
+        print(f"\n事件总数: {len(events_df)}")
+        print(f"有效事件数量（剔除缺失值后）: {len(events_clean)}")
+        
+        if len(events_clean) >= 2:
+            # 计算相关系数
+            pearson_corr = events_clean['平均情绪'].corr(events_clean['累计超额收益率'])
+            spearman_corr = events_clean['平均情绪'].corr(events_clean['累计超额收益率'], method='spearman')
+            
+            print("\n" + "="*60)
+            print("事件窗口情绪与累计超额收益率相关性分析")
+            print("="*60)
+            print(f"Pearson相关系数: {pearson_corr:.4f}")
+            print(f"Spearman秩相关系数: {spearman_corr:.4f}")
+            
+            # 计算显著性
+            from scipy import stats
+            if len(events_clean) > 2:
+                _, p_value = stats.pearsonr(events_clean['平均情绪'], events_clean['累计超额收益率'])
+                print(f"显著性p值: {p_value:.6f}")
+                if p_value < 0.05:
+                    print("在5%显著性水平上显著相关")
+                else:
+                    print("在5%显著性水平上不显著相关")
+            
+            # 基本统计信息
+            print("\n描述性统计:")
+            print("-"*40)
+            print("窗口平均情绪:")
+            print(f"  均值: {events_clean['平均情绪'].mean():.4f}")
+            print(f"  标准差: {events_clean['平均情绪'].std():.4f}")
+            print(f"  最小值: {events_clean['平均情绪'].min():.4f}")
+            print(f"  最大值: {events_clean['平均情绪'].max():.4f}")
+            
+            print("\n窗口累计超额收益率:")
+            print(f"  均值: {events_clean['累计超额收益率'].mean():.4f}%")
+            print(f"  标准差: {events_clean['累计超额收益率'].std():.4f}%")
+            print(f"  最小值: {events_clean['累计超额收益率'].min():.4f}%")
+            print(f"  最大值: {events_clean['累计超额收益率'].max():.4f}%")
+
+            print("\n" + "="*60)
+            print("相关性解释:")
+            print("="*60)
+            
+            if abs(pearson_corr) > 0.7:
+                strength = "强"
+            elif abs(pearson_corr) > 0.3:
+                strength = "中等"
+            else:
+                strength = "弱"
+            
+            if pearson_corr > 0:
+                direction = "正"
+                explanation = "事件窗口期平均情绪越高，累计超额收益率也越高"
+            elif pearson_corr < 0:
+                direction = "负"
+                explanation = "事件窗口期平均情绪越高，累计超额收益率反而越低"
+            else:
+                direction = "无"
+                explanation = "事件窗口期平均情绪与累计超额收益率没有线性关系"
+            
+            print(f"相关性强度: {strength}")
+            print(f"相关性方向: {direction}")
+            print(f"经济含义: {explanation}")
+            
+            # 显示前10个事件的数据
+            print("\n" + "="*60)
+            print("前10个事件的具体数据:")
+            print("="*60)
+            print(events_df.head(10).to_string(index=False))
+            
+        else:
+            print("错误：有效事件数量不足，无法计算相关系数")
+    else:
+        print("错误：事件数量不足，无法计算相关系数")
+
+
+
+
+# 计算每个事件的平均情绪和累计收益率
+events_data = []
+for (stock, period), group in window_data.groupby(['股票代码', '期间']):
+    avg_sentiment = group['评论情绪指标'].mean()
+    cum_return = group['超额收益率'].sum()
+    
+    if pd.notna(avg_sentiment) and pd.notna(cum_return):
+        events_data.append([avg_sentiment, cum_return])
+
+# 转换为DataFrame
+if len(events_data) >= 2:
+    events_df = pd.DataFrame(events_data, columns=['平均情绪', '累计收益率'])
+    
+    # 计算相关系数
+    correlation = events_df['平均情绪'].corr(events_df['累计收益率'])
+    
+    # 创建4个子图可视化
+    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    
+    # 1. 散点图
+    ax1 = axes[0, 0]
+    scatter = ax1.scatter(events_df['平均情绪'], 
+                          events_df['累计收益率'],
+                          alpha=0.6, s=50, c='blue', edgecolors='black')
+    
+    # 添加回归线
+    if len(events_df) >= 2:
+        z = np.polyfit(events_df['平均情绪'], 
+                      events_df['累计收益率'], 1)
+        p = np.poly1d(z)
+        x_range = np.linspace(events_df['平均情绪'].min(), 
+                             events_df['平均情绪'].max(), 100)
+        ax1.plot(x_range, p(x_range), "r--", alpha=0.8, linewidth=2)
+    
+    ax1.set_xlabel('窗口平均情绪', fontsize=12)
+    ax1.set_ylabel('累计超额收益率 (%)', fontsize=12)
+    ax1.set_title(f'窗口平均情绪 vs 累计超额收益率\n相关系数: {correlation:.4f}', fontsize=14, fontweight='bold')
+    ax1.grid(True, alpha=0.3)
+    
+    # 2. 直方图 - 平均情绪
+    ax2 = axes[0, 1]
+    ax2.hist(events_df['平均情绪'], bins=20, alpha=0.7, color='skyblue', edgecolor='black')
+    ax2.set_xlabel('窗口平均情绪', fontsize=12)
+    ax2.set_ylabel('频率', fontsize=12)
+    ax2.set_title('窗口平均情绪分布', fontsize=14, fontweight='bold')
+    ax2.grid(True, alpha=0.3)
+    
+    # 3. 直方图 - 累计收益率
+    ax3 = axes[1, 0]
+    ax3.hist(events_df['累计收益率'], bins=20, alpha=0.7, color='lightgreen', edgecolor='black')
+    ax3.set_xlabel('累计超额收益率 (%)', fontsize=12)
+    ax3.set_ylabel('频率', fontsize=12)
+    ax3.set_title('累计超额收益率分布', fontsize=14, fontweight='bold')
+    ax3.grid(True, alpha=0.3)
+    
+    # 4. 联合分布图（2D直方图）
+    ax4 = axes[1, 1]
+    hb = ax4.hexbin(events_df['平均情绪'], events_df['累计收益率'],
+                   gridsize=20, cmap='Blues', alpha=0.8)
+    ax4.set_xlabel('窗口平均情绪', fontsize=12)
+    ax4.set_ylabel('累计超额收益率 (%)', fontsize=12)
+    ax4.set_title('联合分布密度图', fontsize=14, fontweight='bold')
+    ax4.grid(True, alpha=0.3)
+    
+    # 添加颜色条
+    plt.colorbar(hb, ax=ax4)
+    
+    plt.tight_layout()
+    plt.show()
+
+
+
+
+
+
+
+
+
+#为每个事件计算窗口[-3,+5]的平均股吧情绪
+window_data = df[df['窗口位置'].between(-3, 5)]
+
+# 存储结果
+results = []
+
+for (stock, period), group in window_data.groupby(['股票代码', '期间']):
+    # 计算该事件的窗口平均情绪
+    avg_sentiment = group['评论情绪指标'].mean()
+    
+    # 获取该事件的年报语调（从事件日数据中）
+    tone_data = event_day_data[(event_day_data['股票代码'] == stock) & 
+                               (event_day_data['期间'] == period)]
+    
+    if not tone_data.empty and pd.notna(tone_data['年报语调'].iloc[0]) and pd.notna(avg_sentiment):
+        annual_tone = tone_data['年报语调'].iloc[0]
+        
+        results.append({
+            '股票代码': stock,
+            '期间': period,
+            '年报语调': annual_tone,
+            '窗口平均情绪': avg_sentiment
+        })
+
+# 转换为DataFrame
+if len(results) > 0:
+    results_df = pd.DataFrame(results)
+    
+    # 删除缺失值
+    clean_df = results_df[['年报语调', '窗口平均情绪']].dropna()
+    
+    if len(clean_df) >= 2:
+        # 计算相关系数
+        pearson_corr = clean_df['年报语调'].corr(clean_df['窗口平均情绪'])
+        spearman_corr = clean_df['年报语调'].corr(clean_df['窗口平均情绪'], method='spearman')
+        
+        print("="*60)
+        print("年报语调与事件窗口平均股吧情绪相关性分析")
+        print("="*60)
+        print(f"有效事件数量: {len(clean_df)}")
+        print(f"Pearson相关系数: {pearson_corr:.4f}")
+        print(f"Spearman秩相关系数: {spearman_corr:.4f}")
+        
+        # 计算显著性
+        from scipy import stats
+        if len(clean_df) > 2:
+            _, p_value = stats.pearsonr(clean_df['年报语调'], clean_df['窗口平均情绪'])
+            print(f"显著性p值: {p_value:.6f}")
+            if p_value < 0.05:
+                print("结果：在5%显著性水平上显著相关")
+            else:
+                print("结果：在5%显著性水平上不显著相关")
+        
+        # 基本统计信息
+        print("\n描述性统计:")
+        print("-"*40)
+        print("年报语调:")
+        print(f"  均值: {clean_df['年报语调'].mean():.4f}")
+        print(f"  标准差: {clean_df['年报语调'].std():.4f}")
+        print(f"  范围: [{clean_df['年报语调'].min():.4f}, {clean_df['年报语调'].max():.4f}]")
+        
+        print("\n窗口平均情绪:")
+        print(f"  均值: {clean_df['窗口平均情绪'].mean():.4f}")
+        print(f"  标准差: {clean_df['窗口平均情绪'].std():.4f}")
+        print(f"  范围: [{clean_df['窗口平均情绪'].min():.4f}, {clean_df['窗口平均情绪'].max():.4f}]")
+        
+        # 创建2个子图可视化
+        fig, axes = plt.subplots(1, 2, figsize=(15, 7))
+        
+        # 1. 散点图
+        ax1 = axes[0]
+        scatter = ax1.scatter(clean_df['年报语调'], 
+                              clean_df['窗口平均情绪'],
+                              alpha=0.6, s=50, c='purple', edgecolors='black')
+        
+        # 添加回归线
+        if len(clean_df) >= 2:
+            z = np.polyfit(clean_df['年报语调'], 
+                          clean_df['窗口平均情绪'], 1)
+            p = np.poly1d(z)
+            x_range = np.linspace(clean_df['年报语调'].min(), 
+                                 clean_df['年报语调'].max(), 100)
+            ax1.plot(x_range, p(x_range), "r--", alpha=0.8, linewidth=2)
+        
+        ax1.set_xlabel('年报语调', fontsize=12)
+        ax1.set_ylabel('窗口平均情绪', fontsize=12)
+        ax1.set_title(f'年报语调 vs 窗口平均情绪\n相关系数: {pearson_corr:.4f}', fontsize=14, fontweight='bold')
+        ax1.grid(True, alpha=0.3)
+        
+        # 2. 联合分布图
+        ax2 = axes[1]
+        hb = ax2.hexbin(clean_df['年报语调'], clean_df['窗口平均情绪'],
+                       gridsize=20, cmap='viridis', alpha=0.8)
+        ax2.set_xlabel('年报语调', fontsize=12)
+        ax2.set_ylabel('窗口平均情绪', fontsize=12)
+        ax2.set_title('联合分布密度图', fontsize=14, fontweight='bold')
+        ax2.grid(True, alpha=0.3)
+        
+        # 添加颜色条
+        plt.colorbar(hb, ax=ax2)
+        
+        plt.tight_layout()
+        plt.show()
+        
+        # 相关性解释
+        print("\n" + "="*60)
+        print("相关性解释:")
+        print("="*60)
+        
+        if abs(pearson_corr) > 0.7:
+            strength = "强"
+        elif abs(pearson_corr) > 0.3:
+            strength = "中等"
+        else:
+            strength = "弱"
+        
+        if pearson_corr > 0:
+            direction = "正"
+            explanation = "年报语调越高，事件窗口期股吧平均情绪也越高"
+        elif pearson_corr < 0:
+            direction = "负"
+            explanation = "年报语调越高，事件窗口期股吧平均情绪反而越低"
+        else:
+            direction = "无"
+            explanation = "年报语调与事件窗口期股吧平均情绪没有线性关系"
+        
+        print(f"相关性强度: {strength}")
+        print(f"相关性方向: {direction}")
+        print(f"经济含义: {explanation}")
+        
+    else:
+        print(f"有效数据不足，只有 {len(clean_df)} 条记录")
+else:
+    print("没有找到匹配的数据")
+
+
+
+
+
+
+
+# 存储事件数据
+events_data = []
+
+for (stock, period), group in window_data.groupby(['股票代码', '期间']):
+    # 计算累计超额收益率
+    cum_excess_return = group['超额收益率'].sum()
+    
+    # 获取年报语调
+    tone_row = event_day_data[(event_day_data['股票代码'] == stock) & 
+                              (event_day_data['期间'] == period)]
+    
+    if not tone_row.empty and pd.notna(tone_row['年报语调'].iloc[0]):
+        annual_tone = tone_row['年报语调'].iloc[0]
+        
+        events_data.append({
+            '股票代码': stock,
+            '期间': period,
+            '年报语调': annual_tone,
+            '累计超额收益率': cum_excess_return
+        })
+
+# 转换为DataFrame
+if len(events_data) > 0:
+    events_df = pd.DataFrame(events_data)
+    
+    # 计算所有事件年报语调的中位数
+    median_tone = events_df['年报语调'].median()
+    print("="*60)
+    print("年报语调分组分析")
+    print("="*60)
+    print(f"事件总数: {len(events_df)}")
+    print(f"年报语调中位数: {median_tone:.4f}")
+    
+    # 分组
+    high_tone_group = events_df[events_df['年报语调'] > median_tone].copy()
+    low_tone_group = events_df[events_df['年报语调'] <= median_tone].copy()
+    
+    high_tone_group['组别'] = '高语调组'
+    low_tone_group['组别'] = '低语调组'
+    
+    print(f"\n高语调组事件数: {len(high_tone_group)}")
+    print(f"低语调组事件数: {len(low_tone_group)}")
+    
+    # 比较两组的累计超额收益率
+    if len(high_tone_group) > 0 and len(low_tone_group) > 0:
+        high_car_mean = high_tone_group['累计超额收益率'].mean()
+        low_car_mean = low_tone_group['累计超额收益率'].mean()
+        
+        high_car_std = high_tone_group['累计超额收益率'].std()
+        low_car_std = low_tone_group['累计超额收益率'].std()
+        
+        print("\n" + "="*60)
+        print("两组累计超额收益率比较")
+        print("="*60)
+        print("高语调组:")
+        print(f"  平均累计超额收益率: {high_car_mean:.4f}%")
+        print(f"  标准差: {high_car_std:.4f}%")
+        print(f"  最小值: {high_tone_group['累计超额收益率'].min():.4f}%")
+        print(f"  最大值: {high_tone_group['累计超额收益率'].max():.4f}%")
+        
+        print("\n低语调组:")
+        print(f"  平均累计超额收益率: {low_car_mean:.4f}%")
+        print(f"  标准差: {low_car_std:.4f}%")
+        print(f"  最小值: {low_tone_group['累计超额收益率'].min():.4f}%")
+        print(f"  最大值: {low_tone_group['累计超额收益率'].max():.4f}%")
+        
+        # 计算差异
+        diff = high_car_mean - low_car_mean
+        print(f"\n差异分析:")
+        print(f"  高语调组 - 低语调组: {diff:.4f}%")
+        
+        # 进行t检验
+        if len(high_tone_group) >= 2 and len(low_tone_group) >= 2:
+            t_stat, p_value = stats.ttest_ind(high_tone_group['累计超额收益率'], 
+                                             low_tone_group['累计超额收益率'],
+                                             equal_var=False)  # Welch's t-test
+            
+            print(f"  t统计量: {t_stat:.4f}")
+            print(f"  p值: {p_value:.6f}")
+            
+            if p_value < 0.05:
+                print("  结果：在5%显著性水平上，两组差异显著")
+                if diff > 0:
+                    print("  高语调组的累计超额收益率显著高于低语调组")
+                else:
+                    print("  高语调组的累计超额收益率显著低于低语调组")
+            else:
+                print("  结果：在5%显著性水平上，两组差异不显著")
+        
+        # 创建可视化图表
+        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+        
+        # 1. 分组箱线图
+        ax1 = axes[0, 0]
+        combined_df = pd.concat([high_tone_group, low_tone_group])
+        box_data = [high_tone_group['累计超额收益率'], low_tone_group['累计超额收益率']]
+        
+        bp = ax1.boxplot(box_data, labels=['高语调组', '低语调组'], 
+                        patch_artist=True, showmeans=True)
+        
+        # 设置颜色
+        colors = ['lightcoral', 'lightblue']
+        for patch, color in zip(bp['boxes'], colors):
+            patch.set_facecolor(color)
+            patch.set_alpha(0.7)
+        
+        # 设置均值点样式
+        bp['means'][0].set_marker('o')
+        bp['means'][0].set_markerfacecolor('red')
+        bp['means'][0].set_markeredgecolor('red')
+        bp['means'][1].set_marker('o')
+        bp['means'][1].set_markerfacecolor('red')
+        bp['means'][1].set_markeredgecolor('red')
+        
+        ax1.set_ylabel('累计超额收益率 (%)', fontsize=12)
+        ax1.set_title('两组累计超额收益率分布比较', fontsize=14, fontweight='bold')
+        ax1.grid(True, alpha=0.3, axis='y')
+        
+        # 2. 分组柱状图
+        ax2 = axes[0, 1]
+        means = [high_car_mean, low_car_mean]
+        stds = [high_car_std, low_car_std]
+        groups = ['高语调组', '低语调组']
+        
+        bars = ax2.bar(groups, means, yerr=stds, capsize=10, 
+                      color=['lightcoral', 'lightblue'], alpha=0.7)
+        
+        ax2.set_ylabel('平均累计超额收益率 (%)', fontsize=12)
+        ax2.set_title('两组平均累计超额收益率比较', fontsize=14, fontweight='bold')
+        ax2.grid(True, alpha=0.3, axis='y')
+        
+        # 在柱子上添加数值
+        for i, (mean, std) in enumerate(zip(means, stds)):
+            ax2.text(i, mean + (std/2 if mean >= 0 else -std/2), 
+                    f'{mean:.2f}%', ha='center', va='bottom' if mean >= 0 else 'top',
+                    fontsize=11, fontweight='bold')
+        
+        # 3. 语调分布图
+        ax3 = axes[1, 0]
+        bins = 20
+        ax3.hist(high_tone_group['年报语调'], bins=bins, alpha=0.5, 
+                color='lightcoral', label='高语调组', edgecolor='black')
+        ax3.hist(low_tone_group['年报语调'], bins=bins, alpha=0.5,
+                color='lightblue', label='低语调组', edgecolor='black')
+        
+        # 添加中位线
+        ax3.axvline(x=median_tone, color='red', linestyle='--', 
+                   linewidth=2, label=f'中位数: {median_tone:.4f}')
+        
+        ax3.set_xlabel('年报语调', fontsize=12)
+        ax3.set_ylabel('事件数量', fontsize=12)
+        ax3.set_title('年报语调分布（按中位数分组）', fontsize=14, fontweight='bold')
+        ax3.legend()
+        ax3.grid(True, alpha=0.3)
+        
+        # 4. 散点图（颜色区分组别）
+        ax4 = axes[1, 1]
+        
+        # 绘制散点
+        scatter1 = ax4.scatter(high_tone_group['年报语调'], 
+                              high_tone_group['累计超额收益率'],
+                              alpha=0.6, s=50, c='red', 
+                              edgecolors='black', label='高语调组')
+        
+        scatter2 = ax4.scatter(low_tone_group['年报语调'], 
+                              low_tone_group['累计超额收益率'],
+                              alpha=0.6, s=50, c='blue', 
+                              edgecolors='black', label='低语调组')
+        
+        # 添加中位线
+        ax4.axvline(x=median_tone, color='green', linestyle='--', 
+                   linewidth=2, label=f'语调中位数')
+        
+        # 添加组均值线
+        ax4.axhline(y=high_car_mean, color='red', linestyle=':', 
+                   linewidth=1.5, alpha=0.7, label='高语调组均值')
+        ax4.axhline(y=low_car_mean, color='blue', linestyle=':', 
+                   linewidth=1.5, alpha=0.7, label='低语调组均值')
+        
+        ax4.set_xlabel('年报语调', fontsize=12)
+        ax4.set_ylabel('累计超额收益率 (%)', fontsize=12)
+        ax4.set_title('年报语调与累计超额收益率关系（按中位数分组）', 
+                     fontsize=14, fontweight='bold')
+        ax4.legend(loc='best')
+        ax4.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.show()
+        
+        
+    else:
+        print("错误：至少有一个分组数据为空")
+else:
+    print("没有找到有效的事件数据")
+
+
+
+
+
+# 存储事件数据
+events_data = []
+
+for (stock, period), group in window_data.groupby(['股票代码', '期间']):
+    # 计算累计超额收益率
+    cum_excess_return = group['超额收益率'].sum()
+    
+    # 获取年报语调
+    tone_row = event_day_data[(event_day_data['股票代码'] == stock) & 
+                              (event_day_data['期间'] == period)]
+    
+    if not tone_row.empty and pd.notna(tone_row['年报语调'].iloc[0]):
+        annual_tone = tone_row['年报语调'].iloc[0]
+        
+        events_data.append({
+            '股票代码': stock,
+            '期间': period,
+            '年报语调': annual_tone,
+            '累计超额收益率': cum_excess_return
+        })
+
+# 转换为DataFrame
+if len(events_data) > 0:
+    events_df = pd.DataFrame(events_data)
+    
+    print("="*70)
+    print("年报语调十分位数分组分析（关注过度积极组）")
+    print("="*70)
+    print(f"事件总数: {len(events_df)}")
+    
+    # 计算十分位数
+    events_df['语调十分位数'] = pd.qcut(events_df['年报语调'], q=10, labels=False, duplicates='drop')
+    
+    # 显示十分位数边界
+    quantiles = events_df['年报语调'].quantile([i/10 for i in range(11)])
+    print("\n十分位数边界值:")
+    for i in range(11):
+        print(f"  {i*10}%分位数: {quantiles.iloc[i]:.4f}")
+    
+    # 重点关注的分组
+    # 最积极10%：第9个十分位数（80-90%）
+    # 中等积极：第5-6个十分位数（40-60%）
+    very_positive = events_df[events_df['语调十分位数'] >= 9].copy()
+    moderate_positive = events_df[events_df['语调十分位数'].between(4, 6)].copy()
+    
+    very_positive['组别'] = '最积极10%组'
+    moderate_positive['组别'] = '中等积极组（40-60%）'
+    
+    print(f"\n分组情况:")
+    print(f"  最积极10%组事件数: {len(very_positive)}")
+    print(f"  中等积极组事件数: {len(moderate_positive)}")
+    
+    # 打印分组的具体语调范围
+    if len(very_positive) > 0:
+        print(f"  最积极10%组语调范围: [{very_positive['年报语调'].min():.4f}, {very_positive['年报语调'].max():.4f}]")
+    if len(moderate_positive) > 0:
+        print(f"  中等积极组语调范围: [{moderate_positive['年报语调'].min():.4f}, {moderate_positive['年报语调'].max():.4f}]")
+    
+    # 比较两组的累计超额收益率
+    if len(very_positive) > 0 and len(moderate_positive) > 0:
+        vp_car_mean = very_positive['累计超额收益率'].mean()
+        mp_car_mean = moderate_positive['累计超额收益率'].mean()
+        
+        vp_car_std = very_positive['累计超额收益率'].std()
+        mp_car_std = moderate_positive['累计超额收益率'].std()
+        
+        print("\n" + "="*70)
+        print("两组累计超额收益率比较")
+        print("="*70)
+        print("最积极10%组（过度积极）:")
+        print(f"  平均累计超额收益率: {vp_car_mean:.4f}%")
+        print(f"  标准差: {vp_car_std:.4f}%")
+        print(f"  中位数: {very_positive['累计超额收益率'].median():.4f}%")
+        print(f"  最小值: {very_positive['累计超额收益率'].min():.4f}%")
+        print(f"  最大值: {very_positive['累计超额收益率'].max():.4f}%")
+        
+        print("\n中等积极组（40-60%分位数）:")
+        print(f"  平均累计超额收益率: {mp_car_mean:.4f}%")
+        print(f"  标准差: {mp_car_std:.4f}%")
+        print(f"  中位数: {moderate_positive['累计超额收益率'].median():.4f}%")
+        print(f"  最小值: {moderate_positive['累计超额收益率'].min():.4f}%")
+        print(f"  最大值: {moderate_positive['累计超额收益率'].max():.4f}%")
+        
+        # 计算差异
+        diff = vp_car_mean - mp_car_mean
+        diff_percent = (diff / abs(mp_car_mean)) * 100 if mp_car_mean != 0 else np.nan
+        
+        print(f"\n差异分析:")
+        print(f"  最积极组 - 中等积极组: {diff:.4f}%")
+        if not np.isnan(diff_percent):
+            print(f"  相对差异: {diff_percent:.2f}%")
+        
+        # 假设检验：过度积极组可能有负向市场反应
+        print(f"\n假设检验：'过度积极组可能有负向市场反应'")
+        
+        # 检验1：与0比较
+        if len(very_positive) >= 2:
+            t_stat_vp, p_value_vp = stats.ttest_1samp(very_positive['累计超额收益率'], 0)
+            print(f"  最积极10%组 vs 0:")
+            print(f"    均值: {vp_car_mean:.4f}%")
+            print(f"    t统计量: {t_stat_vp:.4f}")
+            print(f"    p值: {p_value_vp:.6f}")
+            
+            if p_value_vp < 0.05:
+                if vp_car_mean < 0:
+                    print("    → 支持假设：过度积极组有显著负向市场反应")
+                else:
+                    print("    → 拒绝假设：过度积极组有显著正向市场反应")
+            else:
+                print("    → 无显著市场反应")
+        
+        # 检验2：与中等积极组比较
+        if len(very_positive) >= 2 and len(moderate_positive) >= 2:
+            t_stat_diff, p_value_diff = stats.ttest_ind(very_positive['累计超额收益率'], 
+                                                       moderate_positive['累计超额收益率'],
+                                                       equal_var=False)
+            print(f"\n  最积极组 vs 中等积极组:")
+            print(f"    差异: {diff:.4f}%")
+            print(f"    t统计量: {t_stat_diff:.4f}")
+            print(f"    p值: {p_value_diff:.6f}")
+            
+            if p_value_diff < 0.05:
+                if diff < 0:
+                    print("    → 支持假设：过度积极组显著差于中等积极组")
+                else:
+                    print("    → 拒绝假设：过度积极组显著优于中等积极组")
+            else:
+                print("    → 两组差异不显著")
+        
+        # 检验3：Mann-Whitney U检验（非参数）
+        if len(very_positive) >= 3 and len(moderate_positive) >= 3:
+            u_stat, u_p = stats.mannwhitneyu(very_positive['累计超额收益率'], 
+                                            moderate_positive['累计超额收益率'],
+                                            alternative='two-sided')
+            print(f"\n  Mann-Whitney U检验:")
+            print(f"    U统计量: {u_stat:.2f}")
+            print(f"    p值: {u_p:.6f}")
+        
+        # 创建可视化图表
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        
+        # 1. 分组箱线图
+        ax1 = axes[0, 0]
+        box_data = [very_positive['累计超额收益率'], moderate_positive['累计超额收益率']]
+        
+        bp = ax1.boxplot(box_data, labels=['最积极10%组', '中等积极组'], 
+                        patch_artist=True, showmeans=True, showfliers=True)
+        
+        # 设置颜色
+        colors = ['#FF9999', '#66B2FF']  # 红色代表过度积极，蓝色代表中等
+        for patch, color in zip(bp['boxes'], colors):
+            patch.set_facecolor(color)
+            patch.set_alpha(0.7)
+        
+        # 设置均值点
+        for mean in bp['means']:
+            mean.set_marker('D')
+            mean.set_markerfacecolor('yellow')
+            mean.set_markeredgecolor('black')
+        
+        ax1.set_ylabel('累计超额收益率 (%)', fontsize=12)
+        ax1.set_title('两组累计超额收益率分布比较\n（检验"过度积极"假设）', fontsize=14, fontweight='bold')
+        ax1.axhline(y=0, color='gray', linestyle='--', alpha=0.5)
+        ax1.grid(True, alpha=0.3, axis='y')
+        
+        # 2. 所有十分位数的趋势图
+        ax2 = axes[0, 1]
+        decile_means = events_df.groupby('语调十分位数')['累计超额收益率'].mean()
+        decile_counts = events_df.groupby('语调十分位数')['累计超额收益率'].count()
+        
+        # 绘制趋势线
+        ax2.plot(decile_means.index, decile_means.values, 'o-', linewidth=2, 
+                markersize=8, color='green', label='平均累计收益')
+        
+        # 突出显示关注的两个组
+        ax2.axvspan(9, 9.5, alpha=0.3, color='red', label='最积极10%组')
+        ax2.axvspan(4, 6.5, alpha=0.3, color='blue', label='中等积极组')
+        
+        ax2.set_xlabel('语调十分位数', fontsize=12)
+        ax2.set_ylabel('平均累计超额收益率 (%)', fontsize=12)
+        ax2.set_title('不同语调十分位数的平均累计超额收益率', fontsize=14, fontweight='bold')
+        ax2.axhline(y=0, color='gray', linestyle='--', alpha=0.5)
+        ax2.grid(True, alpha=0.3)
+        ax2.legend()
+        
+        # 在点上添加事件数量
+        for i, (decile, count) in enumerate(zip(decile_means.index, decile_counts)):
+            ax2.text(decile, decile_means.iloc[i] + (0.2 if decile_means.iloc[i] >= 0 else -0.3), 
+                    f'n={count}', ha='center', fontsize=9)
+        
+        # 3. 语调分布与累计收益的散点图
+        ax3 = axes[1, 0]
+        
+        # 用颜色区分组别
+        all_groups = pd.concat([very_positive, moderate_positive])
+        colors_map = {'最积极10%组': 'red', '中等积极组（40-60%）': 'blue'}
+        
+        for group_name, group_color in colors_map.items():
+            group_data = all_groups[all_groups['组别'] == group_name]
+            ax3.scatter(group_data['年报语调'], group_data['累计超额收益率'],
+                       alpha=0.7, s=60, c=group_color, 
+                       edgecolors='black', label=group_name)
+        
+        # 添加十分位数边界线
+        for q in [0.4, 0.6, 0.9]:
+            boundary = quantiles.loc[q]
+            linestyle = '--' if q == 0.9 else ':'
+            alpha = 0.8 if q == 0.9 else 0.5
+            ax3.axvline(x=boundary, color='gray', linestyle=linestyle, 
+                       alpha=alpha, linewidth=1.5)
+            ax3.text(boundary, ax3.get_ylim()[1]*0.95, f'{int(q*100)}%', 
+                    ha='center', fontsize=9, backgroundcolor='white')
+        
+        ax3.set_xlabel('年报语调', fontsize=12)
+        ax3.set_ylabel('累计超额收益率 (%)', fontsize=12)
+        ax3.set_title('语调与累计收益关系（重点关注组）', fontsize=14, fontweight='bold')
+        ax3.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
+        ax3.grid(True, alpha=0.3)
+        ax3.legend()
+        
+        # 4. 累计收益分布直方图对比
+        ax4 = axes[1, 1]
+        
+        # 绘制两个组的分布
+        bins = np.linspace(min(all_groups['累计超额收益率'].min(), -5), 
+                          max(all_groups['累计超额收益率'].max(), 5), 20)
+        
+        ax4.hist(very_positive['累计超额收益率'], bins=bins, alpha=0.5, 
+                color='red', label='最积极10%组', edgecolor='black', density=True)
+        ax4.hist(moderate_positive['累计超额收益率'], bins=bins, alpha=0.5,
+                color='blue', label='中等积极组', edgecolor='black', density=True)
+        
+        # 添加核密度估计
+        from scipy.stats import gaussian_kde
+        
+        def plot_kde(data, color, label):
+            if len(data) > 1:
+                kde = gaussian_kde(data)
+                x_range = np.linspace(min(bins), max(bins), 200)
+                ax4.plot(x_range, kde(x_range), color=color, linewidth=2, 
+                        label=f'{label} KDE')
+        
+        plot_kde(very_positive['累计超额收益率'], 'darkred', '最积极组')
+        plot_kde(moderate_positive['累计超额收益率'], 'darkblue', '中等组')
+        
+        ax4.set_xlabel('累计超额收益率 (%)', fontsize=12)
+        ax4.set_ylabel('密度', fontsize=12)
+        ax4.set_title('累计收益分布密度对比', fontsize=14, fontweight='bold')
+        ax4.axvline(x=0, color='gray', linestyle='--', alpha=0.5)
+        ax4.grid(True, alpha=0.3)
+        ax4.legend()
+        
+        plt.tight_layout()
+        plt.show()
+        
+        # 结论总结
+        print("\n" + "="*70)
+        print("研究结论总结")
+        print("="*70)
+        
+        if diff < 0 and p_value_diff < 0.05:
+            print(" 支持研究假设：过度积极的年报语调（前10%）")
+            print("   导致更差的累计超额收益率，存在负向市场反应")
+        elif diff < 0 and p_value_diff >= 0.05:
+            print("  部分支持假设：过度积极组的平均收益较低")
+            print("   但统计上不显著，需要更多数据验证")
+        elif diff > 0 and p_value_diff < 0.05:
+            print(" 拒绝研究假设：过度积极组反而有更好表现")
+            print("   这可能意味着市场看好过度积极的年报")
+        else:
+            print("无法得出明确结论：两组差异不显著")
+        
+        
+    else:
+        print("错误：至少有一个分组数据不足")
+else:
+    print("没有找到有效的事件数据")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import statsmodels.api as sm
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from scipy import stats
+
+
+print("="*70)
+print("语调×情绪交互项回归分析")
+print("="*70)
+print(f"事件日数据条数: {len(event_day_data)}")
+print(f"窗口[-3,+5]数据条数: {len(window_data)}")
+
+# 收集回归数据
+regression_data = []
+
+for (stock, period), group in window_data.groupby(['股票代码', '期间']):
+    # 计算窗口平均情绪
+    avg_sentiment = group['评论情绪指标'].mean()
+    
+    # 获取事件日的超额收益率和年报语调
+    event_row = event_day_data[(event_day_data['股票代码'] == stock) & 
+                               (event_day_data['期间'] == period)]
+    
+    if not event_row.empty and pd.notna(event_row['年报语调'].iloc[0]) and pd.notna(avg_sentiment):
+        excess_return = event_row['超额收益率'].iloc[0]
+        annual_tone = event_row['年报语调'].iloc[0]
+        
+        regression_data.append({
+            '股票代码': stock,
+            '期间': period,
+            '超额收益率': excess_return,
+            '年报语调': annual_tone,
+            '平均情绪': avg_sentiment
+        })
+
+# 转换为DataFrame
+if len(regression_data) > 0:
+    reg_df = pd.DataFrame(regression_data)
+    
+    # 删除缺失值
+    reg_clean = reg_df.dropna()
+    
+    print(f"\n有效样本数量: {len(reg_clean)}")
+    
+    if len(reg_clean) >= 10:  # 回归分析需要足够样本
+        # 创建交互项
+        reg_clean['语调×情绪'] = reg_clean['年报语调'] * reg_clean['平均情绪']
+        
+        # 标准化变量（可选，有助于解释）
+        reg_clean['语调标准化'] = (reg_clean['年报语调'] - reg_clean['年报语调'].mean()) / reg_clean['年报语调'].std()
+        reg_clean['情绪标准化'] = (reg_clean['平均情绪'] - reg_clean['平均情绪'].mean()) / reg_clean['平均情绪'].std()
+        reg_clean['交互项标准化'] = reg_clean['语调标准化'] * reg_clean['情绪标准化']
+        
+        # 构建回归模型
+        print("\n" + "="*70)
+        print("回归模型1：使用原始变量")
+        print("="*70)
+        
+        X1 = reg_clean[['年报语调', '平均情绪', '语调×情绪']]
+        X1 = sm.add_constant(X1)  # 添加常数项
+        y = reg_clean['超额收益率']
+        
+        model1 = sm.OLS(y, X1).fit()
+        print(model1.summary())
+        
+        print("\n" + "="*70)
+        print("回归模型2：使用标准化变量")
+        print("="*70)
+        
+        X2 = reg_clean[['语调标准化', '情绪标准化', '交互项标准化']]
+        X2 = sm.add_constant(X2)
+        
+        model2 = sm.OLS(y, X2).fit()
+        print(model2.summary())
+        
+        # 多重共线性检验
+        print("\n" + "="*70)
+        print("多重共线性检验（VIF）")
+        print("="*70)
+        
+        vif_data = pd.DataFrame()
+        vif_data["变量"] = X1.columns
+        vif_data["VIF"] = [variance_inflation_factor(X1.values, i) for i in range(X1.shape[1])]
+        print(vif_data.to_string(index=False))
+        
+        # VIF判断标准：VIF > 10表示严重多重共线性
+        high_vif = vif_data[vif_data['VIF'] > 10]
+        if len(high_vif) > 0:
+            print(f"\n警告：以下变量存在严重多重共线性（VIF > 10）:")
+            print(high_vif.to_string(index=False))
+        
+        # 重点分析交互项
+        print("\n" + "="*70)
+        print("交互项β3的重点分析")
+        print("="*70)
+        
+        beta3 = model1.params['语调×情绪']
+        beta3_se = model1.bse['语调×情绪']
+        beta3_t = model1.tvalues['语调×情绪']
+        beta3_p = model1.pvalues['语调×情绪']
+        
+        print(f"交互项系数 β3: {beta3:.6f}")
+        print(f"标准误: {beta3_se:.6f}")
+        print(f"t统计量: {beta3_t:.4f}")
+        print(f"p值: {beta3_p:.6f}")
+        
+        if beta3_p < 0.01:
+            significance = "高度显著（p < 0.01）"
+        elif beta3_p < 0.05:
+            significance = "显著（p < 0.05）"
+        elif beta3_p < 0.1:
+            significance = "边缘显著（p < 0.1）"
+        else:
+            significance = "不显著"
+        
+        print(f"显著性水平: {significance}")
+        
+        # 解释交互项的含义
+        print("\n" + "="*70)
+        print("交互项的经济含义解释")
+        print("="*70)
+        
+        if beta3_p < 0.05:  # 显著的情况下
+            if beta3 > 0:
+                print("β3 > 0 且显著：")
+                print("→ 年报语调与股吧情绪的交互作用对超额收益率有正向影响")
+                print("→ 年报语调的正面效应会因股吧情绪的积极而增强")
+                print("→ 股吧情绪的正面效应会因年报语调的积极而增强")
+                print("→ 存在协同效应：两者同时积极时，市场反应更强")
+            else:
+                print("β3 < 0 且显著：")
+                print("→ 年报语调与股吧情绪的交互作用对超额收益率有负向影响")
+                print("→ 可能存在替代效应或过度反应")
+                print("→ 两者同时积极时，市场可能认为'过于完美'而反应谨慎")
+                print("→ 或：一方积极时，另一方的边际效应递减")
+        else:
+            print("β3不显著：")
+            print("→ 年报语调与股吧情绪对超额收益率的影响是独立的")
+            print("→ 没有显著的交互效应")
+            print("→ 两者对市场反应的影响是相加的，不是相乘的")
+        
+        # 边际效应分析
+        print("\n" + "="*70)
+        print("边际效应分析")
+        print("="*70)
+        
+        # 计算在不同情绪水平下，语调的边际效应
+        beta1 = model1.params['年报语调']
+        beta2 = model1.params['平均情绪']
+        
+        # 边际效应：∂(超额收益率)/∂(语调) = β1 + β3×情绪
+        emotion_levels = ['低情绪（25%分位数）', '中情绪（中位数）', '高情绪（75%分位数）']
+        emotion_values = [reg_clean['平均情绪'].quantile(0.25), 
+                         reg_clean['平均情绪'].median(), 
+                         reg_clean['平均情绪'].quantile(0.75)]
+        
+        for level, value in zip(emotion_levels, emotion_values):
+            marginal_effect = beta1 + beta3 * value
+            print(f"{level}（情绪={value:.4f}）时，语调的边际效应: {marginal_effect:.6f}")
+        
+        
+        
+        # 模型诊断
+        print("\n" + "="*70)
+        print("模型诊断")
+        print("="*70)
+        
+        # Durbin-Watson检验自相关
+        dw = sm.stats.durbin_watson(model1.resid)
+        print(f"Durbin-Watson统计量: {dw:.4f}")
+        if dw < 1.5:
+            print("  可能存在正自相关")
+        elif dw > 2.5:
+            print("  可能存在负自相关")
+        else:
+            print("  无明显自相关")
+        
+        # 异方差检验
+        _, het_p, _, _ = sm.stats.diagnostic.het_breuschpagan(model1.resid, model1.model.exog)
+        print(f"Breusch-Pagan异方差检验p值: {het_p:.6f}")
+        if het_p < 0.05:
+            print("  存在异方差问题")
+        else:
+            print("  无异方差问题")
+        
+        # 模型性能
+        print(f"\n模型R²: {model1.rsquared:.4f}")
+        print(f"调整R²: {model1.rsquared_adj:.4f}")
+        print(f"F统计量: {model1.fvalue:.2f} (p={model1.f_pvalue:.6f})")
+        
+        # 研究结论
+        print("\n" + "="*70)
+        print("研究结论")
+        print("="*70)
+        
+        if beta3_p < 0.05:
+            if beta3 > 0:
+                print("研究发现显著的协同效应：")
+                print(f"   交互项β3 = {beta3:.4f} (p={beta3_p:.4f}) > 0")
+                print("   年报语调与股吧情绪存在正向交互作用")
+                print("   两者同时积极时，市场反应显著增强")
+            else:
+                print("研究发现显著的替代效应/过度反应：")
+                print(f"   交互项β3 = {beta3:.4f} (p={beta3_p:.4f}) < 0")
+                print("   年报语调与股吧情绪存在负向交互作用")
+                print("   可能表明市场对'过度一致'的积极信号持谨慎态度")
+        else:
+            print("未发现显著的交互效应：")
+            print(f"   交互项β3 = {beta3:.4f} (p={beta3_p:.4f})")
+            print("   年报语调与股吧情绪对市场反应的影响相对独立")
+        
+        # 显示回归数据示例
+        print("\n" + "="*70)
+        print("回归数据示例（前10个观测）")
+        print("="*70)
+        print(reg_clean[['股票代码', '年报语调', '平均情绪', '语调×情绪', '超额收益率']].head(10).to_string(index=False))
+        
+    else:
+        print(f"样本数量不足，至少需要10个观测，当前只有{len(reg_clean)}个")
+else:
+    print("没有找到足够的有效数据")
+
+# 可视化
+fig, axes = plt.subplots(3, 2, figsize=(15, 18))
+
+# 1. 交互效应三维图
+from mpl_toolkits.mplot3d import Axes3D
+ax1 = fig.add_subplot(3, 2, 1, projection='3d')  # 修正：第一个子图
+
+# 创建网格
+tone_range = np.linspace(reg_clean['年报语调'].min(), reg_clean['年报语调'].max(), 10)
+emotion_range = np.linspace(reg_clean['平均情绪'].min(), reg_clean['平均情绪'].max(), 10)
+tone_grid, emotion_grid = np.meshgrid(tone_range, emotion_range)
+
+# 计算预测值
+predicted_return = (model1.params['const'] + 
+                   model1.params['年报语调'] * tone_grid + 
+                   model1.params['平均情绪'] * emotion_grid + 
+                   model1.params['语调×情绪'] * tone_grid * emotion_grid)
+
+# 3D曲面图
+surf = ax1.plot_surface(tone_grid, emotion_grid, predicted_return, 
+                       cmap='viridis', alpha=0.8)
+ax1.scatter(reg_clean['年报语调'], reg_clean['平均情绪'], reg_clean['超额收益率'],
+           color='red', s=30, alpha=0.6, label='实际数据')
+
+ax1.set_xlabel('年报语调', fontsize=11)
+ax1.set_ylabel('平均情绪', fontsize=11)
+ax1.set_zlabel('超额收益率预测', fontsize=11)
+ax1.set_title('交互效应三维图', fontsize=13, fontweight='bold')
+ax1.legend()
+
+# 2. 回归系数条形图
+ax2 = axes[0, 1]
+coefficients = model1.params[1:]  # 排除常数项
+errors = model1.bse[1:]
+
+bars = ax2.bar(range(len(coefficients)), coefficients, 
+              yerr=errors, capsize=8, color=['#4C72B0', '#55A868', '#C44E52'], alpha=0.7)
+
+ax2.set_xlabel('回归系数', fontsize=12)
+ax2.set_ylabel('系数值', fontsize=12)
+ax2.set_title('回归系数估计（带标准误）', fontsize=13, fontweight='bold')
+ax2.set_xticks(range(len(coefficients)))
+ax2.set_xticklabels(['语调(β1)', '情绪(β2)', '交互项(β3)'], fontsize=11)
+ax2.axhline(y=0, color='black', linewidth=0.8)
+ax2.grid(True, alpha=0.3, axis='y')
+
+# 添加显著性标记
+for i, (coef, pval) in enumerate(zip(coefficients, model1.pvalues[1:])):
+    if pval < 0.01:
+        sig = '***'
+    elif pval < 0.05:
+        sig = '**'
+    elif pval < 0.1:
+        sig = '*'
+    else:
+        sig = ''
+    
+    y_pos = coef + errors[i] + 0.02 if coef >= 0 else coef - errors[i] - 0.05
+    ax2.text(i, y_pos, sig, ha='center', fontsize=14, fontweight='bold')
+
+# 3. 边际效应图
+ax3 = axes[1, 0]
+
+# 计算在不同情绪水平下，语调的边际效应
+emotion_test = np.linspace(reg_clean['平均情绪'].min(), reg_clean['平均情绪'].max(), 100)
+marginal_effects = beta1 + beta3 * emotion_test
+
+ax3.plot(emotion_test, marginal_effects, linewidth=2.5, color='#D62728')
+ax3.fill_between(emotion_test, 
+                 marginal_effects - 1.96*np.sqrt(beta3_se**2 * emotion_test**2),
+                 marginal_effects + 1.96*np.sqrt(beta3_se**2 * emotion_test**2),
+                 alpha=0.2, color='#D62728')
+
+ax3.axhline(y=0, color='gray', linestyle='--', alpha=0.7)
+ax3.set_xlabel('平均情绪水平', fontsize=12)
+ax3.set_ylabel('语调的边际效应', fontsize=12)
+ax3.set_title('语调的边际效应随情绪变化', fontsize=13, fontweight='bold')
+ax3.grid(True, alpha=0.3)
+
+# 4. 残差分析
+ax4 = axes[1, 1]
+residuals = model1.resid
+fitted = model1.fittedvalues
+
+ax4.scatter(fitted, residuals, alpha=0.6, s=40, color='#2E8B57')
+ax4.axhline(y=0, color='red', linestyle='--', linewidth=1.5)
+ax4.set_xlabel('拟合值', fontsize=12)
+ax4.set_ylabel('残差', fontsize=12)
+ax4.set_title('残差图（检验异方差）', fontsize=13, fontweight='bold')
+ax4.grid(True, alpha=0.3)
+
+# 5. QQ图检验正态性
+ax5 = axes[2, 0]
+stats.probplot(residuals, dist="norm", plot=ax5)
+ax5.set_title('残差QQ图（检验正态性）', fontsize=13, fontweight='bold')
+ax5.grid(True, alpha=0.3)
+
+# 6. 交互效应简单斜率图
+ax6 = axes[2, 1]
+
+# 分高低情绪组
+emotion_median = reg_clean['平均情绪'].median()
+high_emotion = reg_clean[reg_clean['平均情绪'] > emotion_median]
+low_emotion = reg_clean[reg_clean['平均情绪'] <= emotion_median]
+
+# 拟合高低情绪组的简单回归
+for group_data, group_name, color in [(high_emotion, '高情绪组', 'red'), 
+                                      (low_emotion, '低情绪组', 'blue')]:
+    if len(group_data) > 1:
+        X_group = sm.add_constant(group_data['年报语调'])
+        model_group = sm.OLS(group_data['超额收益率'], X_group).fit()
+        
+        tone_range = np.linspace(group_data['年报语调'].min(), 
+                                group_data['年报语调'].max(), 50)
+        X_pred = sm.add_constant(tone_range)
+        y_pred = model_group.predict(X_pred)
+        
+        ax6.plot(tone_range, y_pred, color=color, linewidth=2.5, 
+                label=f'{group_name} (斜率={model_group.params[1]:.3f})')
+        
+        # 绘制散点
+        ax6.scatter(group_data['年报语调'], group_data['超额收益率'],
+                   color=color, alpha=0.5, s=40)
+
+ax6.set_xlabel('年报语调', fontsize=12)
+ax6.set_ylabel('超额收益率', fontsize=12)
+ax6.set_title('不同情绪水平下语调与收益的关系', fontsize=13, fontweight='bold')
+ax6.legend()
+ax6.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+
+
+
+
+
+
+pre_window_data = df[df['窗口位置'].between(-3, -1)]
+print("="*70)
+print("预期差假设检验：实际语调 vs 预期情绪")
+print("假设：预期差越大（实际比预期好），收益越高")
+print("="*70)
+
+# 获取事件日超额收益率
+print(f"事件日数据条数: {len(event_day_data)}")
+print(f"事前窗口[-3,-1]数据条数: {len(pre_window_data)}")
+
+# 收集分析数据
+analysis_data = []
+
+for (stock, period), group in pre_window_data.groupby(['股票代码', '期间']):
+    # 计算事前平均情绪（预期）
+    pre_sentiment = group['评论情绪指标'].mean()
+    
+    # 获取事件日的年报语调和超额收益率
+    event_row = event_day_data[(event_day_data['股票代码'] == stock) & 
+                               (event_day_data['期间'] == period)]
+    
+    if not event_row.empty and pd.notna(pre_sentiment):
+        annual_tone = event_row['年报语调'].iloc[0] if pd.notna(event_row['年报语调'].iloc[0]) else np.nan
+        event_ar = event_row['超额收益率'].iloc[0] if pd.notna(event_row['超额收益率'].iloc[0]) else np.nan
+        
+        if pd.notna(annual_tone) and pd.notna(event_ar):
+            analysis_data.append({
+                '股票代码': stock,
+                '期间': period,
+                '事前情绪': pre_sentiment,      # 预期
+                '实际语调': annual_tone,        # 实际
+                '事件日超额收益': event_ar      # 因变量
+            })
+
+# 转换为DataFrame
+if len(analysis_data) > 0:
+    analysis_df = pd.DataFrame(analysis_data)
+    
+    print(f"\n有效样本数量: {len(analysis_df)}")
+    
+    if len(analysis_df) >= 5:
+        # 标准化预期和实际
+        # 为了消除量纲影响，对预期和实际进行标准化
+        analysis_df['预期标准化'] = (analysis_df['事前情绪'] - analysis_df['事前情绪'].mean()) / analysis_df['事前情绪'].std()
+        analysis_df['实际标准化'] = (analysis_df['实际语调'] - analysis_df['实际语调'].mean()) / analysis_df['实际语调'].std()
+        
+        # 计算预期差
+        # 预期差 = 实际 - 预期
+        analysis_df['预期差'] = analysis_df['实际标准化'] - analysis_df['预期标准化']
+        
+        # 也可以计算原始值的预期差（非标准化）
+        analysis_df['预期差_原始'] = analysis_df['实际语调'] - analysis_df['事前情绪']
+        
+        # 描述性统计
+        print("\n" + "="*70)
+        print("描述性统计")
+        print("="*70)
+        desc_stats = analysis_df[['事前情绪', '实际语调', '预期差_原始', '事件日超额收益']].describe()
+        print(desc_stats.round(4))
+        
+        # 回归分析
+        print("\n" + "="*70)
+        print("回归分析：事件日超额收益 = α + β × 预期差")
+        print("="*70)
+        
+        # 模型1：使用标准化预期差
+        X1 = analysis_df['预期差']
+        X1 = sm.add_constant(X1)
+        y = analysis_df['事件日超额收益']
+        
+        model1 = sm.OLS(y, X1).fit()
+        
+        print("模型1：使用标准化预期差")
+        print("-"*40)
+        print(f"样本数: {len(analysis_df)}")
+        print(f"R²: {model1.rsquared:.4f}")
+        print(f"调整R²: {model1.rsquared_adj:.4f}")
+        print(f"F统计量: {model1.fvalue:.2f} (p={model1.f_pvalue:.6f})")
+        print("\n回归系数:")
+        for var, coef, pval in zip(model1.params.index, model1.params.values, model1.pvalues.values):
+            sig = '***' if pval < 0.001 else '**' if pval < 0.01 else '*' if pval < 0.05 else ''
+            print(f"  {var}: {coef:.6f}{sig} (p={pval:.6f})")
+        
+        # 模型2：使用原始预期差
+        X2 = analysis_df['预期差_原始']
+        X2 = sm.add_constant(X2)
+        model2 = sm.OLS(y, X2).fit()
+        
+        print("\n模型2：使用原始预期差")
+        print("-"*40)
+        print(f"R²: {model2.rsquared:.4f}")
+        print(f"调整R²: {model2.rsquared_adj:.4f}")
+        print("\n回归系数:")
+        for var, coef, pval in zip(model2.params.index, model2.params.values, model2.pvalues.values):
+            sig = '***' if pval < 0.001 else '**' if pval < 0.01 else '*' if pval < 0.05 else ''
+            print(f"  {var}: {coef:.6f}{sig} (p={pval:.6f})")
+        
+        # 模型3：分解模型（预期和实际分开）
+        X3 = analysis_df[['预期标准化', '实际标准化']]
+        X3 = sm.add_constant(X3)
+        model3 = sm.OLS(y, X3).fit()
+        
+        print("\n模型3：分解模型（预期和实际分开）")
+        print("-"*40)
+        print(f"R²: {model3.rsquared:.4f}")
+        print(f"调整R²: {model3.rsquared_adj:.4f}")
+        print("\n回归系数:")
+        for var, coef, pval in zip(model3.params.index, model3.params.values, model3.pvalues.values):
+            sig = '***' if pval < 0.001 else '**' if pval < 0.01 else '*' if pval < 0.05 else ''
+            print(f"  {var}: {coef:.6f}{sig} (p={pval:.6f})")
+        
+        # 重点分析预期差系数
+        print("\n" + "="*70)
+        print("假设检验：预期差系数β")
+        print("="*70)
+        
+        beta = model1.params['预期差']
+        beta_p = model1.pvalues['预期差']
+        
+        print(f"预期差系数β: {beta:.6f}")
+        print(f"p值: {beta_p:.6f}")
+        
+        if beta_p < 0.001:
+            significance = "高度显著（p < 0.001）"
+        elif beta_p < 0.01:
+            significance = "很显著（p < 0.01）"
+        elif beta_p < 0.05:
+            significance = "显著（p < 0.05）"
+        elif beta_p < 0.1:
+            significance = "边缘显著（p < 0.1）"
+        else:
+            significance = "不显著"
+        
+        print(f"显著性: {significance}")
+        
+        # 解释假设
+        print("\n" + "="*70)
+        print("假设验证结果")
+        print("="*70)
+        
+        if beta_p < 0.05:  # 显著的情况下
+            if beta > 0:
+                print("支持研究假设：")
+                print(f"   预期差系数β = {beta:.4f} > 0 (p={beta_p:.4f})")
+                print("   实际语调超过预期情绪越多，事件日超额收益率越高")
+                print("   市场对'好于预期'的年报语调有正面反应")
+            else:
+                print("与假设相反：")
+                print(f"   预期差系数β = {beta:.4f} < 0 (p={beta_p:.4f})")
+                print("   实际语调超过预期情绪越多，事件日超额收益率反而越低")
+                print("   可能存在'利好出尽'或'过度反应修正'效应")
+        else:
+            print("无法验证假设：")
+            print(f"   预期差系数β = {beta:.4f} (p={beta_p:.4f})")
+            print("   预期差与事件日超额收益率无显著关系")
+            print("   市场反应可能受其他因素影响更大")
+        
+        # 计算效应大小
+        print("\n" + "="*70)
+        print("效应大小分析")
+        print("="*70)
+        
+        # 预期差增加1个标准差，超额收益率变化多少？
+        if beta_p < 0.05:
+            effect_size = beta * analysis_df['预期差'].std()
+            print(f"预期差增加1个标准差，超额收益率变化: {effect_size:.4f}%")
+            
+            # 预期差的四分位数效应
+            q25, q50, q75 = analysis_df['预期差'].quantile([0.25, 0.5, 0.75])
+            effect_q25_q75 = beta * (q75 - q25)
+            print(f"预期差从25%分位到75%分位，超额收益率变化: {effect_q25_q75:.4f}%")
+        
+        # 稳健性检验
+        print("\n" + "="*70)
+        print("稳健性检验")
+        print("="*70)
+        
+        # 1. 分样本回归（按事件数量分）
+        if len(analysis_df) >= 20:
+            half_point = len(analysis_df) // 2
+            sample1 = analysis_df.iloc[:half_point]
+            sample2 = analysis_df.iloc[half_point:]
+            
+            # 子样本回归
+            def run_subset_regression(subset, name):
+                X_sub = sm.add_constant(subset['预期差'])
+                model_sub = sm.OLS(subset['事件日超额收益'], X_sub).fit()
+                return model_sub.params['预期差'], model_sub.pvalues['预期差']
+            
+            beta1, p1 = run_subset_regression(sample1, "前半样本")
+            beta2, p2 = run_subset_regression(sample2, "后半样本")
+            
+            print(f"前半样本 (n={len(sample1)}): β={beta1:.4f}, p={p1:.4f}")
+            print(f"后半样本 (n={len(sample2)}): β={beta2:.4f}, p={p2:.4f}")
+            
+            # Chow检验（结构变化检验）
+            from statsmodels.stats.anova import anova_lm
+            
+            X_full = sm.add_constant(analysis_df['预期差'])
+            model_full = sm.OLS(analysis_df['事件日超额收益'], X_full).fit()
+            
+            # 虚拟变量方法
+            analysis_df['子样本'] = np.where(analysis_df.index < half_point, 0, 1)
+            analysis_df['交互项'] = analysis_df['预期差'] * analysis_df['子样本']
+            
+            X_chow = analysis_df[['预期差', '子样本', '交互项']]
+            X_chow = sm.add_constant(X_chow)
+            model_chow = sm.OLS(analysis_df['事件日超额收益'], X_chow).fit()
+            
+            print(f"交互项系数: {model_chow.params['交互项']:.4f}, p={model_chow.pvalues['交互项']:.4f}")
+            
+            if model_chow.pvalues['交互项'] < 0.05:
+                print("  存在显著结构变化（子样本间系数不同）")
+            else:
+                print("  无显著结构变化（子样本间系数稳定）")
+        
+        # 2. 控制变量回归
+        print("\n控制变量分析:")
+        print("原始模型R²: {:.4f}".format(model1.rsquared))
+        print("当模型仅包含常数项时R²: {:.4f}".format(
+            sm.OLS(y, np.ones(len(y))).fit().rsquared))
+        
+        # 显示前10个观测
+        print("\n" + "="*70)
+        print("数据示例（前10个观测）")
+        print("="*70)
+        display_cols = ['股票代码', '事前情绪', '实际语调', '预期差', '事件日超额收益']
+        print(analysis_df[display_cols].head(10).round(4).to_string(index=False))
+        
+        # 最终结论
+        print("\n" + "="*70)
+        print("研究结论总结")
+        print("="*70)
+        
+        if beta_p < 0.05 and beta > 0:
+            print("强烈支持研究假设")
+            print("   预期差（实际语调 - 预期情绪）与事件日超额收益率显著正相关")
+            print("   当实际年报语调超过市场预期时，产生正向超额收益")
+            print("   市场对'好于预期'的信息有积极反应")
+            
+            # 投资含义
+            print("\n投资含义:")
+            print("   1. 可以基于事前情绪预测年报语调")
+            print("   2. 当预测实际>预期时，可能有正向交易机会")
+            print("   3. 预期差策略可能带来超额收益")
+            
+        elif beta_p < 0.05 and beta < 0:
+            print(" 与研究假设相反")
+            print("   预期差与事件日超额收益率显著负相关")
+            print("   可能存在'利好出尽'或'预期管理'效应")
+            print("   市场对超预期的好消息反而反应负面")
+            
+        else:
+            print("研究假设未得到支持")
+            print("   预期差与事件日超额收益率无显著关系")
+            print("   市场对预期差的反应不明确")
+            print("   可能需要考虑其他调节变量或非线性关系")
+            
+    else:
+        print(f"样本数量不足，至少需要5个观测，当前只有{len(analysis_df)}个")
+else:
+    print("没有找到足够的有效数据")
+
+# 可视化
+fig, axes = plt.subplots(3, 2, figsize=(15, 18))
+
+# 1. 预期差与超额收益的散点图
+ax1 = axes[0, 0]
+scatter = ax1.scatter(analysis_df['预期差'], analysis_df['事件日超额收益'],
+                     alpha=0.7, s=60, c=analysis_df['预期差'], 
+                     cmap='coolwarm', edgecolors='black')
+
+# 添加回归线
+x_range = np.linspace(analysis_df['预期差'].min(), analysis_df['预期差'].max(), 100)
+y_pred = model1.params['const'] + model1.params['预期差'] * x_range
+ax1.plot(x_range, y_pred, 'r--', linewidth=2.5, alpha=0.8, label='回归线')
+
+ax1.set_xlabel('预期差（实际语调 - 预期情绪）', fontsize=12)
+ax1.set_ylabel('事件日超额收益率 (%)', fontsize=12)
+ax1.set_title(f'预期差 vs 事件日超额收益\nβ={beta:.4f}, p={beta_p:.4f}', fontsize=14, fontweight='bold')
+ax1.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
+ax1.axvline(x=0, color='gray', linestyle='-', alpha=0.5)
+ax1.grid(True, alpha=0.3)
+ax1.legend()
+
+# 添加颜色条
+plt.colorbar(scatter, ax=ax1, label='预期差大小')
+
+# 2. 预期、实际、预期差的分布
+ax2 = axes[0, 1]
+variables = ['预期标准化', '实际标准化', '预期差']
+colors = ['blue', 'orange', 'green']
+
+for var, color in zip(variables, colors):
+    ax2.hist(analysis_df[var], bins=20, alpha=0.5, 
+            color=color, label=var, edgecolor='black', density=True)
+
+ax2.set_xlabel('标准化值', fontsize=12)
+ax2.set_ylabel('密度', fontsize=12)
+ax2.set_title('预期、实际和预期差分布', fontsize=14, fontweight='bold')
+ax2.legend()
+ax2.grid(True, alpha=0.3)
+
+# 3. 四象限分析
+ax3 = axes[1, 0]
+
+# 定义象限
+analysis_df['象限'] = '其他'
+analysis_df.loc[(analysis_df['实际标准化'] > 0) & (analysis_df['预期标准化'] > 0), '象限'] = 'I: 实际高，预期高'
+analysis_df.loc[(analysis_df['实际标准化'] > 0) & (analysis_df['预期标准化'] <= 0), '象限'] = 'II: 实际高，预期低'
+analysis_df.loc[(analysis_df['实际标准化'] <= 0) & (analysis_df['预期标准化'] > 0), '象限'] = 'III: 实际低，预期高'
+analysis_df.loc[(analysis_df['实际标准化'] <= 0) & (analysis_df['预期标准化'] <= 0), '象限'] = 'IV: 实际低，预期低'
+
+# 计算各象限平均超额收益
+quadrant_means = analysis_df.groupby('象限')['事件日超额收益'].mean()
+quadrant_counts = analysis_df.groupby('象限')['事件日超额收益'].count()
+
+# 重新排序象限
+quadrant_order = ['I: 实际高，预期高', 'II: 实际高，预期低', 
+                 'III: 实际低，预期高', 'IV: 实际低，预期低']
+quadrant_means = quadrant_means.reindex(quadrant_order)
+quadrant_counts = quadrant_counts.reindex(quadrant_order)
+
+bars = ax3.bar(range(len(quadrant_means)), quadrant_means.values, 
+              color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4'])
+
+ax3.set_xlabel('预期-实际组合象限', fontsize=12)
+ax3.set_ylabel('平均超额收益率 (%)', fontsize=12)
+ax3.set_title('不同预期-实际组合的平均超额收益', fontsize=14, fontweight='bold')
+ax3.set_xticks(range(len(quadrant_means)))
+ax3.set_xticklabels(quadrant_means.index, rotation=15, fontsize=10)
+ax3.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
+ax3.grid(True, alpha=0.3, axis='y')
+
+# 在柱子上添加数值和样本数
+for i, (mean, count) in enumerate(zip(quadrant_means.values, quadrant_counts.values)):
+    ax3.text(i, mean + (0.04 if mean >= 0 else -0.08), 
+            f'{mean:.2f}%\nn={count}', 
+            ha='center', va='bottom' if mean >= 0 else 'top',
+            fontsize=9)
+
+# 4. 预期差的符号分析
+ax4 = axes[1, 1]
+
+analysis_df['预期差符号'] = np.where(analysis_df['预期差'] > 0, '正预期差（实际>预期）', 
+                                    '负预期差（实际≤预期）')
+sign_means = analysis_df.groupby('预期差符号')['事件日超额收益'].mean()
+sign_counts = analysis_df.groupby('预期差符号')['事件日超额收益'].count()
+
+colors_sign = ['#4ECDC4', '#FF6B6B']
+bars_sign = ax4.bar(sign_means.index, sign_means.values, color=colors_sign, alpha=0.7)
+
+ax4.set_xlabel('预期差符号', fontsize=12)
+ax4.set_ylabel('平均超额收益率 (%)', fontsize=12)
+ax4.set_title('正负预期差的平均超额收益', fontsize=14, fontweight='bold')
+ax4.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
+ax4.grid(True, alpha=0.3, axis='y')
+
+# 添加t检验结果
+positive_group = analysis_df[analysis_df['预期差'] > 0]['事件日超额收益']
+negative_group = analysis_df[analysis_df['预期差'] <= 0]['事件日超额收益']
+
+if len(positive_group) > 1 and len(negative_group) > 1:
+    t_stat, t_p = stats.ttest_ind(positive_group, negative_group, equal_var=False)
+    
+    # 在图上添加显著性标记
+    max_height = max(sign_means.values)
+    ax4.text(0.5, max_height + 0.2, f't={t_stat:.2f}, p={t_p:.3f}', 
+            ha='center', fontsize=10, backgroundcolor='white')
+
+# 在柱子上添加数值
+for i, (mean, count) in enumerate(zip(sign_means.values, sign_counts.values)):
+    ax4.text(i, mean + (0.02 if mean >= 0 else -0.01), 
+            f'{mean:.2f}%\nn={count}', 
+            ha='center', va='bottom' if mean >= 0 else 'top',
+            fontsize=9)
+
+# 5. 预期差分位数分析
+ax5 = axes[2, 0]
+
+# 将预期差分5组
+analysis_df['预期差分位数'] = pd.qcut(analysis_df['预期差'], q=5, labels=False, duplicates='drop')
+quantile_means = analysis_df.groupby('预期差分位数')['事件日超额收益'].mean()
+quantile_counts = analysis_df.groupby('预期差分位数')['事件日超额收益'].count()
+
+# 创建颜色渐变
+colors_quantile = plt.cm.RdYlGn(np.linspace(0, 1, len(quantile_means)))
+
+bars_quantile = ax5.bar(range(len(quantile_means)), quantile_means.values, 
+                       color=colors_quantile)
+
+ax5.set_xlabel('预期差分位数组', fontsize=12)
+ax5.set_ylabel('平均超额收益率 (%)', fontsize=12)
+ax5.set_title('不同预期差分位数的平均超额收益', fontsize=14, fontweight='bold')
+ax5.set_xticks(range(len(quantile_means)))
+ax5.set_xticklabels([f'Q{i+1}' for i in range(len(quantile_means))])
+ax5.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
+ax5.grid(True, alpha=0.3, axis='y')
+
+# 添加趋势线
+ax5.plot(range(len(quantile_means)), quantile_means.values, 'o-', 
+        color='black', linewidth=1.5, markersize=6)
+
+# 在柱子上添加数值
+for i, (mean, count) in enumerate(zip(quantile_means.values, quantile_counts.values)):
+    ax5.text(i, mean + (0.05 if mean >= 0 else -0.08), 
+            f'{mean:.2f}%', 
+            ha='center', va='bottom' if mean >= 0 else 'top',
+            fontsize=9)
+
+# 6. 残差分析
+ax6 = axes[2, 1]
+residuals = model1.resid
+fitted = model1.fittedvalues
+
+ax6.scatter(fitted, residuals, alpha=0.6, s=50, color='#2E8B57')
+ax6.axhline(y=0, color='red', linestyle='--', linewidth=1.5)
+ax6.set_xlabel('拟合值', fontsize=12)
+ax6.set_ylabel('残差', fontsize=12)
+ax6.set_title('残差图', fontsize=14, fontweight='bold')
+ax6.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
